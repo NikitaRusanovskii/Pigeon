@@ -1,4 +1,5 @@
-#define URL "http://localhost:8080/ping"
+#define BASE_ROUTE_URL "http://localhost:8080"
+#define ROUTE_URL(route) BASE_ROUTE_URL route
 
 #include <stdlib.h>
 #include <curl/curl.h>
@@ -37,7 +38,7 @@ void free_memory(struct MemoryResponse* m) {
 }
 
 CURLcode ping() {
-    CURL* curl;
+    CURL *curl;
     CURLcode res;
 
     struct MemoryResponse m;
@@ -47,7 +48,7 @@ CURLcode ping() {
 
     init_memory(&m);
 
-    curl_easy_setopt(curl, CURLOPT_URL, URL);
+    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/ping"));
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
@@ -68,8 +69,47 @@ CURLcode ping() {
     return res;
 }
 
+CURLcode connect_to_signal_server(char* role) {
+    CURL *curl;
+    CURLcode res;
+    struct curl_slist *headers = NULL;
+
+    struct MemoryResponse m;
+    init_memory(&m);
+
+    const char* request_json = "{\"role\": \"slave\"}";
+    headers = curl_slist_append(headers, "Content-type: application/json");
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+
+
+    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/connect"));
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_json);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&m);
+
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        printf("Response: %s\n", m.memory);
+    }
+    else {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(res));
+    }
+
+    free_memory(&m);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return res;
+}
+
 int main() {
-    ping();
+    connect_to_signal_server("master");
 
     return 0;
 }
