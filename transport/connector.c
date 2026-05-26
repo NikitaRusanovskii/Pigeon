@@ -1,9 +1,29 @@
 #define BASE_ROUTE_URL "http://localhost:8080"
 #define ROUTE_URL(route) BASE_ROUTE_URL route
 
+#define RESET   "\033[0m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define BLUE    "\033[34m"
+
 #include <stdlib.h>
 #include <curl/curl.h>
 #include <string.h>
+#include <unistd.h>
+
+struct Http_server {
+    CURL *curl;
+};
+
+void init_http_server(struct Http_server* server) {
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    server->curl = curl_easy_init();
+}
+
+void cleanup_http_server(struct Http_server* server) {
+    curl_easy_cleanup(server->curl);
+    curl_global_cleanup();
+}
 
 struct MemoryResponse {
     char *memory;
@@ -68,23 +88,19 @@ void free_set_master_json(char* json) {
 }
 
 
-CURLcode ping() {
-    CURL *curl;
+CURLcode ping(struct Http_server* server) {
     CURLcode res;
 
     struct MemoryResponse m;
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-
     init_memory(&m);
 
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/ping"));
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
+    curl_easy_setopt(server->curl, CURLOPT_URL, ROUTE_URL("/ping"));
+    curl_easy_setopt(server->curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEDATA, (void*)&m);
 
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(server->curl);
 
     if (res == CURLE_OK) {
         printf("Response: %s\n", m.memory);
@@ -94,14 +110,11 @@ CURLcode ping() {
     }
 
     free_memory(&m);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
-
+    curl_easy_reset(server->curl);
     return res;
 }
 
-CURLcode connect_to_signal_server(const char* role) {
-    CURL *curl;
+CURLcode connect_to_signal_server(struct Http_server* server, const char* role) {
     CURLcode res;
     struct curl_slist *headers = NULL;
 
@@ -111,20 +124,16 @@ CURLcode connect_to_signal_server(const char* role) {
     char* request_json = get_role_json(role);
     headers = curl_slist_append(headers, "Content-type: application/json");
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
+    curl_easy_setopt(server->curl, CURLOPT_URL, ROUTE_URL("/connect"));
+    curl_easy_setopt(server->curl, CURLOPT_POST, 1L);
 
+    curl_easy_setopt(server->curl, CURLOPT_POSTFIELDS, request_json);
+    curl_easy_setopt(server->curl, CURLOPT_HTTPHEADER, headers);
 
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/connect"));
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEDATA, (void *)&m);
 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_json);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&m);
-
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(server->curl);
     if (res == CURLE_OK) {
         printf("Response: %s\n", m.memory);
     }
@@ -134,32 +143,29 @@ CURLcode connect_to_signal_server(const char* role) {
 
     free_memory(&m);
     free_role_json(request_json);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
+    curl_easy_reset(server->curl);
 
     return res;
 }
 
-CURLcode disconnect_from_signal_server() {
-    CURL *curl;
+CURLcode disconnect_from_signal_server(struct Http_server* server) {
     CURLcode res;
     
     struct MemoryResponse m;
     init_memory(&m);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
 
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/disconnect"));
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    curl_easy_setopt(server->curl, CURLOPT_URL, ROUTE_URL("/disconnect"));
+    curl_easy_setopt(server->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
+    curl_easy_setopt(server->curl, CURLOPT_POSTFIELDS, NULL);
+    curl_easy_setopt(server->curl, CURLOPT_HTTPHEADER, NULL);
 
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEDATA, (void*)&m);
 
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(server->curl);
     if (res == CURLE_OK) {
         printf("Response: %s\n", m.memory);
     }
@@ -168,32 +174,28 @@ CURLcode disconnect_from_signal_server() {
     }
 
     free_memory(&m);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
-
+    curl_easy_reset(server->curl);
     return res;
 }
 
-CURLcode heartbeat() {
-    CURL *curl;
+CURLcode heartbeat(struct Http_server *server) {
     CURLcode res;
     
     struct MemoryResponse m;
     init_memory(&m);
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
 
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/heartbeat"));
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+    curl_easy_setopt(server->curl, CURLOPT_URL, ROUTE_URL("/heartbeat"));
+    curl_easy_setopt(server->curl, CURLOPT_CUSTOMREQUEST, "PATCH");
     
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
+    curl_easy_setopt(server->curl, CURLOPT_POSTFIELDS, NULL);
+    curl_easy_setopt(server->curl, CURLOPT_HTTPHEADER, NULL);
 
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEDATA, (void*)&m);
 
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(server->curl);
     if (res == CURLE_OK) {
         printf("Response: %s\n", m.memory);
     }
@@ -202,29 +204,26 @@ CURLcode heartbeat() {
     }
 
     free_memory(&m);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
+    curl_easy_reset(server->curl);
 
     return res;
 }
 
-CURLcode get_masters() {
-    CURL *curl;
+CURLcode get_masters(struct Http_server* server) {
     CURLcode res;
 
     struct MemoryResponse m;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
 
     init_memory(&m);
 
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/get_masters"));
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
+    curl_easy_setopt(server->curl, CURLOPT_URL, ROUTE_URL("/get_masters"));
+    curl_easy_setopt(server->curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEDATA, (void*)&m);
 
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(server->curl);
 
     if (res == CURLE_OK) {
         printf("Response: %s\n", m.memory);
@@ -234,30 +233,27 @@ CURLcode get_masters() {
     }
 
     free_memory(&m);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
+    curl_easy_reset(server->curl);
 
     return res;
 }
 
 
-CURLcode get_masters() {
-    CURL *curl;
+CURLcode get_slaves(struct Http_server* server) {
     CURLcode res;
 
     struct MemoryResponse m;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
 
     init_memory(&m);
 
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/get_slaves"));
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
+    curl_easy_setopt(server->curl, CURLOPT_URL, ROUTE_URL("/get_slaves"));
+    curl_easy_setopt(server->curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(server->curl, CURLOPT_WRITEDATA, (void*)&m);
 
-    res = curl_easy_perform(curl);
+    res = curl_easy_perform(server->curl);
 
     if (res == CURLE_OK) {
         printf("Response: %s\n", m.memory);
@@ -267,55 +263,54 @@ CURLcode get_masters() {
     }
 
     free_memory(&m);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
-
-    return res;
-}
-
-CURLcode connect_to_signal_server(const char* addr_port) {
-    CURL *curl;
-    CURLcode res;
-    struct curl_slist *headers = NULL;
-
-    struct MemoryResponse m;
-    init_memory(&m);
-
-    char* request_json = set_master_json(addr_port);
-    headers = curl_slist_append(headers, "Content-type: application/json");
-
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-
-
-    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/set_master"));
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_json);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&m);
-
-    res = curl_easy_perform(curl);
-    if (res == CURLE_OK) {
-        printf("Response: %s\n", m.memory);
-    }
-    else {
-        fprintf(stderr, "Error: %s\n", curl_easy_strerror(res));
-    }
-
-    free_memory(&m);
-    free_set_master_json(request_json);
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
+    curl_easy_reset(server->curl);
 
     return res;
 }
 
 int main() {
-    connect_to_signal_server("master");
-    heartbeat();
+
+    struct Http_server* server;
+
+    init_http_server(server);
+    CURLcode res;
+
+    printf(BLUE "\t\t\tACTION: connecting\n" RESET);
+    res = connect_to_signal_server(server, "slave");
+    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: connection error\n" RESET);
+    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
+    sleep(1);
+
+    printf(BLUE "\t\t\tACTION: ping\n" RESET);
+    res = ping(server);
+    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: ping error\n" RESET);
+    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
+    sleep(1);
+
+    printf(BLUE "\t\t\tACTION: heartbeat\n" RESET);
+    res = heartbeat(server);
+    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: heartbeat error\n" RESET);
+    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
+    sleep(1);
+    
+    printf(BLUE "\t\t\tACTION: get_masters\n" RESET);
+    res = get_masters(server);
+    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: get_masters error\n" RESET);
+    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
+    sleep(1);
+
+    printf(BLUE "\t\t\tACTION: get_slaves\n" RESET);
+    res = get_slaves(server);
+    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: get_slaves error\n" RESET);
+    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
+    sleep(1);
+    
+    printf(BLUE "\t\t\tACTION: disconnecting\n" RESET);
+    res = disconnect_from_signal_server(server);
+    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: disconnecting error\n" RESET);
+    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
+
+    cleanup_http_server(server);
 
     return 0;
 }
