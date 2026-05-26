@@ -18,7 +18,7 @@ void cleanup_http_server(struct Http_server* server) {
     curl_global_cleanup();
 }
 
-static size_t write_callback(void* contents, size_t size, size_t nmemb, void *userp) {
+size_t write_callback(void* contents, size_t size, size_t nmemb, void *userp) {
     size_t r = size * nmemb;
     struct MemoryResponse* mem = (struct MemoryResponse*)userp;
 
@@ -34,13 +34,16 @@ static size_t write_callback(void* contents, size_t size, size_t nmemb, void *us
 }
 
 void init_memory(struct MemoryResponse* m) {
+    if (!m) return;
     m->memory = (char*)malloc(1);
+    if (!m->memory) return;
     m->size = 0;
-    if (m->memory[0]) m->memory[0] = '\0';
+    m->memory[0] = '\0';
 }
 
 
 void free_memory(struct MemoryResponse* m) {
+    if (!m) return;
     if (m->memory) free(m->memory);
     m->memory = NULL;
     m->size = 0;

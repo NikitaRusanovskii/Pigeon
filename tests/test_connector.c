@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <stdlib.h>
 #include <connector.h>
 
 #define RESET   "\033[0m"
@@ -8,7 +9,7 @@
 
 int main() {
 
-    struct Http_server* server;
+    struct Http_server* server = (struct Http_server*)malloc(sizeof(struct Http_server));
 
     init_http_server(server);
     CURLcode res;
