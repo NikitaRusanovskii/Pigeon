@@ -31,6 +31,13 @@ void init_memory(struct MemoryResponse* m) {
     if (m->memory[0]) m->memory[0] = '\0';
 }
 
+
+void free_memory(struct MemoryResponse* m) {
+    if (m->memory) free(m->memory);
+    m->memory = NULL;
+    m->size = 0;
+}
+
 char* get_role_json(const char* role) {
     size_t len = snprintf(NULL, 0, "{\"role\": \"%s\"}", role) + 1;
     char* json = (char*)malloc(len);
@@ -45,11 +52,21 @@ void free_role_json(char* json) {
     if(json) free(json);
 }
 
-void free_memory(struct MemoryResponse* m) {
-    if (m->memory) free(m->memory);
-    m->memory = NULL;
-    m->size = 0;
+
+char* set_master_json(const char* addr_port) {
+    size_t len = snprintf(NULL, 0, "{\"addr_port\": \"%s\"}", addr_port) + 1;
+    char* json = (char*)malloc(len);
+    if (!json) {
+        return NULL;
+    }
+    snprintf(json, len, "{\"role\": \"%s\"}", addr_port);
+    return json;
 }
+
+void free_set_master_json(char* json) {
+    if(json) free(json);
+}
+
 
 CURLcode ping() {
     CURL *curl;
@@ -250,6 +267,46 @@ CURLcode get_masters() {
     }
 
     free_memory(&m);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return res;
+}
+
+CURLcode connect_to_signal_server(const char* addr_port) {
+    CURL *curl;
+    CURLcode res;
+    struct curl_slist *headers = NULL;
+
+    struct MemoryResponse m;
+    init_memory(&m);
+
+    char* request_json = set_master_json(addr_port);
+    headers = curl_slist_append(headers, "Content-type: application/json");
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+
+
+    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/set_master"));
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_json);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&m);
+
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        printf("Response: %s\n", m.memory);
+    }
+    else {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(res));
+    }
+
+    free_memory(&m);
+    free_set_master_json(request_json);
     curl_easy_cleanup(curl);
     curl_global_cleanup();
 
