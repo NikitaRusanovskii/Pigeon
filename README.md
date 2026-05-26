@@ -1,2 +1,26 @@
 # Pigeon
-Concept. A project on the topic of distributed computing of various kinds
+ - Платформа для распределенных вычислений. (Не готова к использованию)
+
+# Реализовано:
+
+Слой для взаимодействия с HTTP-сигнальным сервером. Позволяет подключаться с ролью `master` или `slave`, отправлять `heartbeat`, получать списки мастеров и слейвов и т.д.
+
+## Возможности
+
+- Подключение к сигнальному серверу с указанием роли (`/connect`)
+- Отключение (`/disconnect`)
+- Проверка доступности сервера (`/ping`)
+- Heartbeat-запросы (`/heartbeat`)
+- Получение списка мастеров (`/get_masters`)
+- Получение списка слейвов (`/get_slaves`)
+
+## Требования
+
+- Компилятор GCC
+- Make
+- Библиотека **libcurl** (разработка: libcurl4-openssl-dev или аналогичная)
+
+Установка libcurl на Ubuntu/Debian:
+```bash
+sudo apt install libcurl4-openssl-dev
+```
