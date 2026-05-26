@@ -31,6 +31,20 @@ void init_memory(struct MemoryResponse* m) {
     if (m->memory[0]) m->memory[0] = '\0';
 }
 
+char* get_role_json(const char* role) {
+    size_t len = snprintf(NULL, 0, "{\"role\": \"%s\"}", role) + 1;
+    char* json = (char*)malloc(len);
+    if (!json) {
+        return NULL;
+    }
+    snprintf(json, len, "{\"role\": \"%s\"}", role);
+    return json;
+}
+
+void free_role_json(char* json) {
+    if(json) free(json);
+}
+
 void free_memory(struct MemoryResponse* m) {
     if (m->memory) free(m->memory);
     m->memory = NULL;
@@ -69,7 +83,7 @@ CURLcode ping() {
     return res;
 }
 
-CURLcode connect_to_signal_server(char* role) {
+CURLcode connect_to_signal_server(const char* role) {
     CURL *curl;
     CURLcode res;
     struct curl_slist *headers = NULL;
@@ -77,7 +91,7 @@ CURLcode connect_to_signal_server(char* role) {
     struct MemoryResponse m;
     init_memory(&m);
 
-    const char* request_json = "{\"role\": \"slave\"}";
+    char* request_json = get_role_json(role);
     headers = curl_slist_append(headers, "Content-type: application/json");
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -102,6 +116,7 @@ CURLcode connect_to_signal_server(char* role) {
     }
 
     free_memory(&m);
+    free_role_json(request_json);
     curl_easy_cleanup(curl);
     curl_global_cleanup();
 
