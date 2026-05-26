@@ -123,8 +123,43 @@ CURLcode connect_to_signal_server(const char* role) {
     return res;
 }
 
+CURLcode disconnect_from_signal_server() {
+    CURL *curl;
+    CURLcode res;
+    
+    struct MemoryResponse m;
+    init_memory(&m);
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+
+    curl_easy_setopt(curl, CURLOPT_URL, ROUTE_URL("/disconnect"));
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&m);
+
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        printf("Response: %s\n", m.memory);
+    }
+    else {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(res));
+    }
+
+    free_memory(&m);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return res;
+}
+
 int main() {
     connect_to_signal_server("master");
+    disconnect_from_signal_server();
 
     return 0;
 }
