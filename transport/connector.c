@@ -1,19 +1,12 @@
 #define BASE_ROUTE_URL "http://localhost:8080"
 #define ROUTE_URL(route) BASE_ROUTE_URL route
 
-#define RESET   "\033[0m"
-#define RED     "\033[31m"
-#define GREEN   "\033[32m"
-#define BLUE    "\033[34m"
-
 #include <stdlib.h>
 #include <curl/curl.h>
 #include <string.h>
-#include <unistd.h>
+#include <connector.h>
 
-struct Http_server {
-    CURL *curl;
-};
+
 
 void init_http_server(struct Http_server* server) {
     curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -24,11 +17,6 @@ void cleanup_http_server(struct Http_server* server) {
     curl_easy_cleanup(server->curl);
     curl_global_cleanup();
 }
-
-struct MemoryResponse {
-    char *memory;
-    size_t size;
-};
 
 static size_t write_callback(void* contents, size_t size, size_t nmemb, void *userp) {
     size_t r = size * nmemb;
@@ -266,51 +254,4 @@ CURLcode get_slaves(struct Http_server* server) {
     curl_easy_reset(server->curl);
 
     return res;
-}
-
-int main() {
-
-    struct Http_server* server;
-
-    init_http_server(server);
-    CURLcode res;
-
-    printf(BLUE "\t\t\tACTION: connecting\n" RESET);
-    res = connect_to_signal_server(server, "slave");
-    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: connection error\n" RESET);
-    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
-    sleep(1);
-
-    printf(BLUE "\t\t\tACTION: ping\n" RESET);
-    res = ping(server);
-    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: ping error\n" RESET);
-    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
-    sleep(1);
-
-    printf(BLUE "\t\t\tACTION: heartbeat\n" RESET);
-    res = heartbeat(server);
-    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: heartbeat error\n" RESET);
-    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
-    sleep(1);
-    
-    printf(BLUE "\t\t\tACTION: get_masters\n" RESET);
-    res = get_masters(server);
-    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: get_masters error\n" RESET);
-    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
-    sleep(1);
-
-    printf(BLUE "\t\t\tACTION: get_slaves\n" RESET);
-    res = get_slaves(server);
-    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: get_slaves error\n" RESET);
-    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
-    sleep(1);
-    
-    printf(BLUE "\t\t\tACTION: disconnecting\n" RESET);
-    res = disconnect_from_signal_server(server);
-    if (res != CURLE_OK) printf(RED "\t\t\tRESULT: disconnecting error\n" RESET);
-    else printf(GREEN "\t\t\tRESULT: successful\n" RESET);
-
-    cleanup_http_server(server);
-
-    return 0;
 }
